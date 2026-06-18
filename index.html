@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ayoubi Restaurant — Daily Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #F7F1E6;
+    color: #2A1A1E;
+  }
+  #root { max-width: 1100px; margin: 0 auto; padding: 28px 24px 60px; }
+
+  :root {
+    --burgundy: #6B1F2E;
+    --burgundy-deep: #4E1521;
+    --cream: #F7F1E6;
+    --cream-card: #FFFCF6;
+    --gold: #C9A227;
+    --gold-soft: #E2C766;
+    --ink: #2A1A1E;
+    --ink-soft: #6B5A5E;
+    --line: #E6DBC8;
+    --green: #5C7A5C;
+    --green-bg: #EAF0E7;
+    --clay: #B5564A;
+    --clay-bg: #F7E9E5;
+  }
+
+  .ayb-display { font-family: 'Fraunces', Georgia, serif; }
+
+  .ayb-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
+  .ayb-brand { display: flex; align-items: center; gap: 14px; }
+  .ayb-mark { width: 46px; height: 46px; border-radius: 50%; background: var(--burgundy); display: flex; align-items: center; justify-content: center; color: var(--gold-soft); font-family: 'Fraunces', Georgia, serif; font-size: 20px; flex-shrink: 0; }
+  .ayb-brand-text h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.02em; color: var(--burgundy-deep); }
+  .ayb-brand-text p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-soft); letter-spacing: 0.03em; }
+  .ayb-date-pill { background: var(--cream-card); border: 1px solid var(--line); border-radius: 999px; padding: 8px 18px; font-size: 13px; color: var(--ink-soft); font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .ayb-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .ayb-status-dot.offline { background: var(--clay); }
+  .ayb-status-dot.connecting { background: var(--gold); }
+
+  .ayb-tab { border: none; background: transparent; padding: 8px 18px; border-radius: 7px; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); cursor: pointer; font-family: inherit; }
+  .ayb-tab.active { background: var(--burgundy); color: var(--cream); }
+  .ayb-tab:hover:not(.active) { background: var(--line); }
+
+  .ayb-ledger { background: var(--cream-card); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; margin-bottom: 24px; position: relative; overflow: hidden; }
+  .ayb-ledger::before { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 4px; background: var(--gold); }
+  .ayb-ledger-title { font-size: 15px; font-weight: 700; color: var(--burgundy-deep); margin: 0 0 4px; }
+  .ayb-ledger-sub { font-size: 12.5px; color: var(--ink-soft); margin: 0 0 18px; }
+  .ayb-form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 760px) { .ayb-form-grid { grid-template-columns: repeat(2, 1fr); } }
+  .ayb-field label { display: block; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); margin-bottom: 6px; }
+  .ayb-field input { width: 100%; border: 1.5px solid var(--line); background: #fff; border-radius: 9px; padding: 10px 12px; font-size: 15px; font-family: inherit; color: var(--ink); font-weight: 600; }
+  .ayb-field input:focus { outline: none; border-color: var(--gold); }
+  .ayb-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .ayb-save-btn { background: var(--burgundy); color: var(--cream); border: none; border-radius: 9px; padding: 11px 22px; font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: inherit; letter-spacing: 0.02em; }
+  .ayb-save-btn:hover { background: var(--burgundy-deep); }
+  .ayb-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ayb-save-msg { font-size: 12.5px; font-weight: 600; opacity: 0; transition: opacity 0.3s; }
+  .ayb-save-msg.show { opacity: 1; }
+  .ayb-save-msg.ok { color: var(--green); }
+  .ayb-save-msg.err { color: var(--clay); }
+
+  .ayb-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 760px) { .ayb-kpis { grid-template-columns: repeat(2, 1fr); } }
+  .ayb-kpi { background: var(--cream-card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .ayb-kpi-label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); margin-bottom: 8px; }
+  .ayb-kpi-value { font-family: 'Fraunces', Georgia, serif; font-size: 28px; font-weight: 600; color: var(--burgundy-deep); line-height: 1; margin-bottom: 6px; }
+  .ayb-kpi-value.gold { background: linear-gradient(120deg, var(--burgundy-deep), var(--gold) 60%, var(--gold-soft)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .ayb-kpi-delta { font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; }
+  .ayb-kpi-delta.up { color: var(--green); background: var(--green-bg); }
+  .ayb-kpi-delta.down { color: var(--clay); background: var(--clay-bg); }
+  .ayb-kpi-delta.flat { color: var(--ink-soft); background: var(--line); }
+
+  .ayb-target { background: var(--cream-card); border: 1px solid var(--line); border-radius: 16px; padding: 20px 24px; margin-bottom: 24px; }
+  .ayb-target-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .ayb-target-head h3 { margin: 0; font-size: 14.5px; font-weight: 700; color: var(--burgundy-deep); }
+  .ayb-target-head span { font-size: 12.5px; color: var(--ink-soft); }
+  .ayb-track { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .ayb-fill { height: 100%; background: linear-gradient(90deg, var(--burgundy), var(--gold)); border-radius: 999px; transition: width 0.4s ease; }
+  .ayb-target-foot { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--ink-soft); }
+
+  .ayb-charts { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin-bottom: 24px; }
+  @media (max-width: 900px) { .ayb-charts { grid-template-columns: 1fr; } }
+  .ayb-chart-card { background: var(--cream-card); border: 1px solid var(--line); border-radius: 16px; padding: 20px 22px; }
+  .ayb-chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .ayb-chart-head h3 { margin: 0; font-size: 14.5px; font-weight: 700; color: var(--burgundy-deep); }
+
+  .ayb-table-wrap { background: var(--cream-card); border: 1px solid var(--line); border-radius: 16px; padding: 8px 0; overflow: hidden; }
+  .ayb-tw-head { padding: 16px 22px 12px; font-size: 14.5px; font-weight: 700; color: var(--burgundy-deep); }
+  table.ayb-log { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.ayb-log th { text-align: left; padding: 10px 22px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); border-bottom: 1px solid var(--line); font-weight: 600; }
+  table.ayb-log td { padding: 11px 22px; border-bottom: 1px solid var(--line); color: var(--ink); font-weight: 500; }
+  table.ayb-log tr:last-child td { border-bottom: none; }
+  table.ayb-log td.num { font-weight: 700; color: var(--burgundy-deep); }
+  .ayb-empty { padding: 40px 24px; text-align: center; color: var(--ink-soft); font-size: 13.5px; }
+  .ayb-del-btn { background: none; border: none; cursor: pointer; color: var(--ink-soft); font-size: 16px; padding: 4px; border-radius: 6px; line-height: 1; }
+  .ayb-del-btn:hover { color: var(--clay); background: var(--clay-bg); }
+  .ayb-loading { padding: 60px; text-align: center; color: var(--ink-soft); font-size: 14px; }
+  .ayb-error-banner { background: var(--clay-bg); border: 1px solid var(--clay); color: var(--clay); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyC07b-gJ6oTgEPz7myUrDgTd1V8KwpHbN0",
+  authDomain: "ayoubi-d7538.firebaseapp.com",
+  databaseURL: "https://ayoubi-d7538-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "ayoubi-d7538",
+  storageBucket: "ayoubi-d7538.firebasestorage.app",
+  messagingSenderId: "758400535794",
+  appId: "1:758400535794:web:fc2ed2237373f2ba8dd46b"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+</script>
+
+<script>
+const e = React.createElement;
+const useState = React.useState;
+const useEffect = React.useEffect;
+const useMemo = React.useMemo;
+const useRef = React.useRef;
+
+const TARGET_MONTHLY = 24143;
+const BASELINE_MONTHLY = 20119;
+
+function fmt(n, d) {
+  d = d || 0;
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function todayStr() { return new Date().toISOString().slice(0,10); }
+function dayLabel(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function startOfWeek(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() - d.getDay());
+  return d.toISOString().slice(0,10);
+}
+function monthKey(dateStr) { return dateStr.slice(0,7); }
+function dateKey(dateStr) { return dateStr.replace(/-/g, '_'); }
+
+function LineChart(props) {
+  const data = props.data, height = props.height || 200, color = props.color || '#6B1F2E', accent = props.accent || '#C9A227';
+  const ref = useRef(null);
+  const [w, setW] = useState(600);
+  useEffect(function() {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(function(entries) { for (const en of entries) setW(en.contentRect.width); });
+    ro.observe(el);
+    return function() { ro.disconnect(); };
+  }, []);
+
+  if (!data.length) {
+    return e('div', { ref: ref, style: { height: height, display:'flex', alignItems:'center', justifyContent:'center', color:'#6B5A5E', fontSize:13 } }, 'No data yet');
+  }
+
+  const pad = { top: 18, right: 14, bottom: 28, left: 44 };
+  const innerW = Math.max(w - pad.left - pad.right, 50);
+  const innerH = height - pad.top - pad.bottom;
+  const values = data.map(function(d) { return d.value; });
+  const max = Math.max.apply(null, values.concat([1])) * 1.15;
+  const stepX = data.length > 1 ? innerW / (data.length - 1) : 0;
+  const pts = data.map(function(d, i) {
+    return Object.assign({}, d, { x: pad.left + i * stepX, y: pad.top + innerH - (d.value / max) * innerH });
+  });
+  const linePath = pts.map(function(p, i) { return (i === 0 ? 'M' : 'L') + p.x + ',' + p.y; }).join(' ');
+  const areaPath = linePath + ' L' + pts[pts.length-1].x + ',' + (pad.top+innerH) + ' L' + pts[0].x + ',' + (pad.top+innerH) + ' Z';
+  const gridLines = 4;
+  const gridYs = [];
+  for (let i = 0; i <= gridLines; i++) gridYs.push(pad.top + (innerH/gridLines)*i);
+  const showEvery = Math.max(Math.ceil(data.length / 7), 1);
+  const gradId = 'g' + Math.random().toString(36).slice(2,8);
+
+  return e('div', { ref: ref, style: { width: '100%' } },
+    e('svg', { width: '100%', height: height, viewBox: '0 0 ' + w + ' ' + height, preserveAspectRatio: 'none' },
+      e('defs', null,
+        e('linearGradient', { id: gradId, x1: '0', y1: '0', x2: '0', y2: '1' },
+          e('stop', { offset: '0%', stopColor: accent, stopOpacity: '0.28' }),
+          e('stop', { offset: '100%', stopColor: accent, stopOpacity: '0' })
+        )
+      ),
+      gridYs.map(function(gy, i) { return e('line', { key: i, x1: pad.left, x2: w - pad.right, y1: gy, y2: gy, stroke: '#E6DBC8', strokeWidth: '1' }); }),
+      gridYs.map(function(gy, i) { return e('text', { key: 't'+i, x: pad.left - 10, y: gy + 4, fontSize: '10.5', fill: '#6B5A5E', textAnchor: 'end', fontFamily: 'Inter' }, Math.round(max - (max/gridLines)*i)); }),
+      e('path', { d: areaPath, fill: 'url(#' + gradId + ')' }),
+      e('path', { d: linePath, fill: 'none', stroke: color, strokeWidth: '2.5', strokeLinejoin: 'round', strokeLinecap: 'round' }),
+      pts.map(function(p, i) { return e('circle', { key: i, cx: p.x, cy: p.y, r: i === pts.length-1 ? 4.5 : 3, fill: i === pts.length-1 ? accent : color, stroke: '#FFFCF6', strokeWidth: '1.5' }); }),
+      pts.map(function(p, i) { return (i % showEvery === 0 || i === pts.length-1) ? e('text', { key: 'l'+i, x: p.x, y: height - 8, fontSize: '10.5', fill: '#6B5A5E', textAnchor: 'middle', fontFamily: 'Inter' }, p.label) : null; })
+    )
+  );
+}
+
+function BarChart(props) {
+  const data = props.data, height = props.height || 200, color = props.color || '#6B1F2E';
+  const ref = useRef(null);
+  const [w, setW] = useState(400);
+  useEffect(function() {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(function(entries) { for (const en of entries) setW(en.contentRect.width); });
+    ro.observe(el);
+    return function() { ro.disconnect(); };
+  }, []);
+
+  if (!data.length) {
+    return e('div', { ref: ref, style: { height: height, display:'flex', alignItems:'center', justifyContent:'center', color:'#6B5A5E', fontSize:13 } }, 'No data yet');
+  }
+
+  const pad = { top: 18, right: 10, bottom: 28, left: 30 };
+  const innerW = Math.max(w - pad.left - pad.right, 50);
+  const innerH = height - pad.top - pad.bottom;
+  const max = Math.max.apply(null, data.map(function(d){ return d.value; }).concat([1])) * 1.2;
+  const gap = 8;
+  const barW = Math.max((innerW - gap * (data.length - 1)) / data.length, 6);
+
+  return e('div', { ref: ref, style: { width: '100%' } },
+    e('svg', { width: '100%', height: height, viewBox: '0 0 ' + w + ' ' + height, preserveAspectRatio: 'none' },
+      data.map(function(d, i) {
+        const x = pad.left + i * (barW + gap);
+        const barH = (d.value / max) * innerH;
+        const y = pad.top + innerH - barH;
+        return e('g', { key: i },
+          e('rect', { x: x, y: y, width: barW, height: Math.max(barH,2), rx: 4, fill: i === data.length-1 ? '#C9A227' : color, opacity: i === data.length-1 ? 1 : 0.85 }),
+          e('text', { x: x + barW/2, y: y - 6, fontSize: '11', fontWeight: '700', fill: '#2A1A1E', textAnchor: 'middle', fontFamily: 'Inter' }, d.value),
+          e('text', { x: x + barW/2, y: height - 8, fontSize: '10', fill: '#6B5A5E', textAnchor: 'middle', fontFamily: 'Inter' }, d.label)
+        );
+      })
+    )
+  );
+}
+
+function App() {
+  const [entries, setEntries] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [connStatus, setConnStatus] = useState('connecting');
+  const [view, setView] = useState('week');
+  const [form, setForm] = useState({ date: todayStr(), sales: '', tables: '' });
+  const [saveMsg, setSaveMsg] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(function() {
+    const entriesRef = db.ref('ayoubi/entries');
+    entriesRef.on('value', function(snapshot) {
+      const val = snapshot.val() || {};
+      const list = Object.keys(val).map(function(k) { return val[k]; });
+      setEntries(list);
+      setLoaded(true);
+    }, function(error) {
+      console.error('Firebase read error:', error);
+      setConnStatus('offline');
+      setLoaded(true);
+    });
+
+    const connectedRef = db.ref('.info/connected');
+    connectedRef.on('value', function(snap) {
+      setConnStatus(snap.val() === true ? 'online' : 'connecting');
+    });
+
+    return function() {
+      entriesRef.off();
+      connectedRef.off();
+    };
+  }, []);
+
+  const handleSave = function() {
+    const sales = parseFloat(form.sales);
+    const tables = parseInt(form.tables);
+    if (!form.date || isNaN(sales) || isNaN(tables) || tables <= 0) {
+      setSaveMsg({ type: 'err', text: 'Please fill in all fields correctly' });
+      setTimeout(function(){ setSaveMsg(null); }, 2500);
+      return;
+    }
+    const aov = sales / tables;
+    setSaving(true);
+    db.ref('ayoubi/entries/' + dateKey(form.date)).set({
+      date: form.date, sales: sales, tables: tables, aov: aov
+    }).then(function() {
+      setSaving(false);
+      setSaveMsg({ type: 'ok', text: 'Saved to Firebase' });
+      setTimeout(function(){ setSaveMsg(null); }, 2000);
+      setForm({ date: todayStr(), sales: '', tables: '' });
+    }).catch(function(err) {
+      setSaving(false);
+      setSaveMsg({ type: 'err', text: 'Save failed: ' + err.message });
+      setTimeout(function(){ setSaveMsg(null); }, 3500);
+    });
+  };
+
+  const handleDelete = function(date) {
+    db.ref('ayoubi/entries/' + dateKey(date)).remove();
+  };
+
+  const previewAov = useMemo(function() {
+    const s = parseFloat(form.sales), t = parseInt(form.tables);
+    return (!isNaN(s) && !isNaN(t) && t > 0) ? (s/t).toFixed(2) : null;
+  }, [form]);
+
+  const sorted = useMemo(function() {
+    return entries.slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
+  }, [entries]);
+
+  const latest = sorted[sorted.length - 1];
+  const prev = sorted[sorted.length - 2];
+
+  function delta(curr, p, key) {
+    if (!curr || !p || p[key] === 0) return null;
+    return ((curr[key] - p[key]) / p[key]) * 100;
+  }
+  const salesDelta = delta(latest, prev, 'sales');
+  const tablesDelta = delta(latest, prev, 'tables');
+  const aovDelta = delta(latest, prev, 'aov');
+
+  const thisMonth = todayStr().slice(0,7);
+  const monthSales = sorted.filter(function(en){ return monthKey(en.date) === thisMonth; }).reduce(function(s,en){ return s + en.sales; }, 0);
+  const monthProgress = Math.min((monthSales / TARGET_MONTHLY) * 100, 100);
+
+  const chartData = useMemo(function() {
+    if (view === 'week') {
+      return sorted.slice(-7).map(function(en) { return { label: dayLabel(en.date).split(',')[0], value: Math.round(en.sales) }; });
+    }
+    const weeks = {};
+    sorted.forEach(function(en) { const wk = startOfWeek(en.date); weeks[wk] = (weeks[wk] || 0) + en.sales; });
+    return Object.keys(weeks).sort().map(function(wk) {
+      return { label: new Date(wk+'T00:00:00').toLocaleDateString('en-US', {day:'numeric', month:'short'}), value: Math.round(weeks[wk]) };
+    });
+  }, [sorted, view]);
+
+  const aovChartData = useMemo(function() {
+    return sorted.slice(-7).map(function(en) { return { label: dayLabel(en.date).split(',')[0], value: Math.round(en.aov) }; });
+  }, [sorted]);
+
+  const tablesChartData = useMemo(function() {
+    return sorted.slice(-7).map(function(en) { return { label: dayLabel(en.date).split(',')[0], value: en.tables }; });
+  }, [sorted]);
+
+  const recentEntries = useMemo(function() {
+    return sorted.slice().reverse().slice(0, 10);
+  }, [sorted]);
+
+  if (!loaded) {
+    return e('div', { className: 'ayb-loading' }, 'Connecting to Firebase...');
+  }
+
+  return e(React.Fragment, null,
+    e('div', { className: 'ayb-header' },
+      e('div', { className: 'ayb-brand' },
+        e('div', { className: 'ayb-mark ayb-display' }, 'ع'),
+        e('div', { className: 'ayb-brand-text' },
+          e('h1', { className: 'ayb-display' }, 'Ayoubi Restaurant'),
+          e('p', null, 'Daily Sales & Table Performance')
+        )
+      ),
+      e('div', { className: 'ayb-date-pill' },
+        e('span', { className: 'ayb-status-dot ' + (connStatus === 'online' ? '' : connStatus === 'offline' ? 'offline' : 'connecting') }),
+        connStatus === 'online' ? 'Live' : connStatus === 'offline' ? 'Offline' : 'Connecting',
+        ' · ',
+        new Date().toLocaleDateString('en-US', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
+      )
+    ),
+
+    connStatus === 'offline' ? e('div', { className: 'ayb-error-banner' }, 'Could not connect to Firebase. Check your internet connection or database rules.') : null,
+
+    e('div', { className: 'ayb-ledger' },
+      e('div', { className: 'ayb-ledger-title' }, "Today's entry"),
+      e('div', { className: 'ayb-ledger-sub' }, "Log the day's numbers once service ends, AOV calculates automatically and syncs to everyone"),
+      e('div', { className: 'ayb-form-grid' },
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'Date'),
+          e('input', { type: 'date', value: form.date, onChange: function(ev){ setForm(Object.assign({}, form, { date: ev.target.value })); } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'Total sales (JOD)'),
+          e('input', { type: 'number', inputMode: 'decimal', placeholder: 'e.g. 720', value: form.sales, onChange: function(ev){ setForm(Object.assign({}, form, { sales: ev.target.value })); } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'Number of tables'),
+          e('input', { type: 'number', inputMode: 'numeric', placeholder: 'e.g. 62', value: form.tables, onChange: function(ev){ setForm(Object.assign({}, form, { tables: ev.target.value })); } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'Average ticket'),
+          e('input', { type: 'text', disabled: true, value: previewAov ? previewAov + ' JOD' : '—', style: { background:'#F7F1E6', color:'#6B1F2E', fontWeight:700 } })
+        )
+      ),
+      e('div', { className: 'ayb-form-footer' },
+        e('span', { className: 'ayb-save-msg ' + (saveMsg ? 'show ' + saveMsg.type : '') }, saveMsg ? saveMsg.text : ''),
+        e('button', { className: 'ayb-save-btn', onClick: handleSave, disabled: saving }, saving ? 'Saving...' : "Save today's numbers")
+      )
+    ),
+
+    e('div', { className: 'ayb-kpis' },
+      e('div', { className: 'ayb-kpi' },
+        e('div', { className: 'ayb-kpi-label' }, 'Latest daily sales'),
+        e('div', { className: 'ayb-kpi-value' }, latest ? fmt(latest.sales) : '—', ' ', e('span', { style: { fontSize:14, color:'#6B5A5E' } }, 'JOD')),
+        salesDelta !== null ? e('span', { className: 'ayb-kpi-delta ' + (salesDelta > 0 ? 'up' : salesDelta < 0 ? 'down' : 'flat') }, (salesDelta > 0 ? '▲' : salesDelta < 0 ? '▼' : '—') + ' ' + Math.abs(salesDelta).toFixed(1) + '% vs prior day') : null
+      ),
+      e('div', { className: 'ayb-kpi' },
+        e('div', { className: 'ayb-kpi-label' }, 'Tables served'),
+        e('div', { className: 'ayb-kpi-value' }, latest ? latest.tables : '—'),
+        tablesDelta !== null ? e('span', { className: 'ayb-kpi-delta ' + (tablesDelta > 0 ? 'up' : tablesDelta < 0 ? 'down' : 'flat') }, (tablesDelta > 0 ? '▲' : tablesDelta < 0 ? '▼' : '—') + ' ' + Math.abs(tablesDelta).toFixed(1) + '% vs prior day') : null
+      ),
+      e('div', { className: 'ayb-kpi' },
+        e('div', { className: 'ayb-kpi-label' }, 'Average order value'),
+        e('div', { className: 'ayb-kpi-value gold ayb-display' }, latest ? latest.aov.toFixed(2) : '—'),
+        aovDelta !== null ? e('span', { className: 'ayb-kpi-delta ' + (aovDelta > 0 ? 'up' : aovDelta < 0 ? 'down' : 'flat') }, (aovDelta > 0 ? '▲' : aovDelta < 0 ? '▼' : '—') + ' ' + Math.abs(aovDelta).toFixed(1) + '% vs prior day') : null
+      ),
+      e('div', { className: 'ayb-kpi' },
+        e('div', { className: 'ayb-kpi-label' }, 'Days logged'),
+        e('div', { className: 'ayb-kpi-value' }, entries.length),
+        e('span', { className: 'ayb-kpi-delta flat' }, 'bundle range 13.25–22.50')
+      )
+    ),
+
+    e('div', { className: 'ayb-target' },
+      e('div', { className: 'ayb-target-head' },
+        e('h3', null, "This month's progress toward the 20% growth target"),
+        e('span', null, fmt(monthSales) + ' / ' + fmt(TARGET_MONTHLY) + ' JOD')
+      ),
+      e('div', { className: 'ayb-track' }, e('div', { className: 'ayb-fill', style: { width: monthProgress + '%' } })),
+      e('div', { className: 'ayb-target-foot' },
+        e('span', null, 'Baseline avg: ' + fmt(BASELINE_MONTHLY) + ' JOD/mo'),
+        e('span', null, monthProgress.toFixed(0) + '% of target')
+      )
+    ),
+
+    e('div', { className: 'ayb-charts' },
+      e('div', { className: 'ayb-chart-card' },
+        e('div', { className: 'ayb-chart-head' },
+          e('h3', null, 'Sales trend'),
+          e('div', { style: { display:'flex', gap:2, background:'#F7F1E6', border:'1px solid #E6DBC8', borderRadius:9, padding:3 } },
+            e('button', { className: 'ayb-tab ' + (view==='week'?'active':''), onClick: function(){ setView('week'); }, style: { padding:'6px 14px', fontSize:12 } }, 'Daily'),
+            e('button', { className: 'ayb-tab ' + (view==='month'?'active':''), onClick: function(){ setView('month'); }, style: { padding:'6px 14px', fontSize:12 } }, 'Weekly')
+          )
+        ),
+        e(LineChart, { data: chartData })
+      ),
+      e('div', { className: 'ayb-chart-card' },
+        e('div', { className: 'ayb-chart-head' }, e('h3', null, 'Average order value')),
+        e(LineChart, { data: aovChartData, color: '#C9A227', accent: '#6B1F2E' })
+      )
+    ),
+
+    e('div', { className: 'ayb-charts' },
+      e('div', { className: 'ayb-chart-card' },
+        e('div', { className: 'ayb-chart-head' }, e('h3', null, 'Tables served (last 7 logged days)')),
+        e(BarChart, { data: tablesChartData })
+      ),
+      e('div', { className: 'ayb-chart-card', style: { display:'flex', flexDirection:'column', justifyContent:'center' } },
+        e('div', { className: 'ayb-chart-head', style: { marginBottom:6 } }, e('h3', null, 'Target reference')),
+        e('div', { style: { fontSize:13, color:'#6B5A5E', lineHeight:1.6 } },
+          e('p', { style: { margin:'0 0 10px' } }, 'Baseline monthly average (Jan–May): ', e('b', { style: { color:'#6B1F2E' } }, fmt(BASELINE_MONTHLY) + ' JOD')),
+          e('p', { style: { margin:'0 0 10px' } }, '45-day growth target (+20%): ', e('b', { style: { color:'#6B1F2E' } }, fmt(TARGET_MONTHLY) + ' JOD')),
+          e('p', { style: { margin:0 } }, 'Bundle AOV anchors: ', e('b', { style: { color:'#6B1F2E' } }, '13.25 – 22.50 JOD'))
+        )
+      )
+    ),
+
+    e('div', { className: 'ayb-table-wrap' },
+      e('div', { className: 'ayb-tw-head' }, 'Recent daily log'),
+      recentEntries.length === 0 ?
+        e('div', { className: 'ayb-empty' }, "No entries yet, log today's numbers above to get started") :
+        e('table', { className: 'ayb-log' },
+          e('thead', null, e('tr', null,
+            e('th', null, 'Date'), e('th', null, 'Sales (JOD)'), e('th', null, 'Tables'), e('th', null, 'AOV (JOD)'), e('th', null)
+          )),
+          e('tbody', null, recentEntries.map(function(en) {
+            return e('tr', { key: en.date },
+              e('td', null, dayLabel(en.date)),
+              e('td', { className: 'num' }, fmt(en.sales)),
+              e('td', null, en.tables),
+              e('td', { className: 'num' }, en.aov.toFixed(2)),
+              e('td', null, e('button', { className: 'ayb-del-btn', onClick: function(){ handleDelete(en.date); }, title: 'Delete entry' }, '×'))
+            );
+          }))
+        )
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+</script>
+</body>
+</html>
