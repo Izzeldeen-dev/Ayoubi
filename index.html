@@ -54,6 +54,8 @@
   .ayb-ledger-sub { font-size: 12.5px; color: var(--ink-soft); margin: 0 0 18px; }
   .ayb-form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
   @media (max-width: 760px) { .ayb-form-grid { grid-template-columns: repeat(2, 1fr); } }
+  .ayb-form-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gold); margin: 4px 0 10px; padding-top: 14px; border-top: 1px dashed var(--line); }
+  .ayb-form-section-label.first { margin-top: 0; padding-top: 0; border-top: none; }
   .ayb-field label { display: block; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); margin-bottom: 6px; }
   .ayb-field input { width: 100%; border: 1.5px solid var(--line); background: #fff; border-radius: 9px; padding: 10px 12px; font-size: 15px; font-family: inherit; color: var(--ink); font-weight: 600; }
   .ayb-field input:focus { outline: none; border-color: var(--gold); }
@@ -251,7 +253,7 @@ function App() {
   const [loaded, setLoaded] = useState(false);
   const [connStatus, setConnStatus] = useState('connecting');
   const [view, setView] = useState('week');
-  const [form, setForm] = useState({ date: todayStr(), sales: '', tables: '' });
+  const [form, setForm] = useState({ date: todayStr(), sales: '', tables: '', cash: '', visa: '', talabat: '', kareem: '', myThings: '', orderCount: '' });
   const [saveMsg, setSaveMsg] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -288,14 +290,21 @@ function App() {
       return;
     }
     const aov = sales / tables;
+    const cash = parseFloat(form.cash) || 0;
+    const visa = parseFloat(form.visa) || 0;
+    const talabat = parseFloat(form.talabat) || 0;
+    const kareem = parseFloat(form.kareem) || 0;
+    const myThings = parseFloat(form.myThings) || 0;
+    const orderCount = parseInt(form.orderCount) || 0;
     setSaving(true);
     db.ref('ayoubi/entries/' + dateKey(form.date)).set({
-      date: form.date, sales: sales, tables: tables, aov: aov
+      date: form.date, sales: sales, tables: tables, aov: aov,
+      cash: cash, visa: visa, talabat: talabat, kareem: kareem, myThings: myThings, orderCount: orderCount
     }).then(function() {
       setSaving(false);
       setSaveMsg({ type: 'ok', text: 'Saved to Firebase' });
       setTimeout(function(){ setSaveMsg(null); }, 2000);
-      setForm({ date: todayStr(), sales: '', tables: '' });
+      setForm({ date: todayStr(), sales: '', tables: '', cash: '', visa: '', talabat: '', kareem: '', myThings: '', orderCount: '' });
     }).catch(function(err) {
       setSaving(false);
       setSaveMsg({ type: 'err', text: 'Save failed: ' + err.message });
@@ -380,17 +389,19 @@ function App() {
     e('div', { className: 'ayb-ledger' },
       e('div', { className: 'ayb-ledger-title' }, "Today's entry"),
       e('div', { className: 'ayb-ledger-sub' }, "Log the day's numbers once service ends, AOV calculates automatically and syncs to everyone"),
+
+      e('div', { className: 'ayb-form-section-label first' }, 'الأساسيات'),
       e('div', { className: 'ayb-form-grid' },
         e('div', { className: 'ayb-field' },
           e('label', null, 'Date'),
           e('input', { type: 'date', value: form.date, onChange: function(ev){ setForm(Object.assign({}, form, { date: ev.target.value })); } })
         ),
         e('div', { className: 'ayb-field' },
-          e('label', null, 'Total sales (JOD)'),
+          e('label', null, 'مبيعات (Total sales JOD)'),
           e('input', { type: 'number', inputMode: 'decimal', placeholder: 'e.g. 720', value: form.sales, onChange: function(ev){ setForm(Object.assign({}, form, { sales: ev.target.value })); } })
         ),
         e('div', { className: 'ayb-field' },
-          e('label', null, 'Number of tables'),
+          e('label', null, 'عدد الطاولات'),
           e('input', { type: 'number', inputMode: 'numeric', placeholder: 'e.g. 62', value: form.tables, onChange: function(ev){ setForm(Object.assign({}, form, { tables: ev.target.value })); } })
         ),
         e('div', { className: 'ayb-field' },
@@ -398,6 +409,39 @@ function App() {
           e('input', { type: 'text', disabled: true, value: previewAov ? previewAov + ' JOD' : '—', style: { background:'#F7F1E6', color:'#6B1F2E', fontWeight:700 } })
         )
       ),
+
+      e('div', { className: 'ayb-form-section-label' }, 'طرق الدفع'),
+      e('div', { className: 'ayb-form-grid' },
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'كاش'),
+          e('input', { type: 'number', inputMode: 'decimal', placeholder: '0', value: form.cash, onChange: function(ev){ setForm(Object.assign({}, form, { cash: ev.target.value })); } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'فيزا'),
+          e('input', { type: 'number', inputMode: 'decimal', placeholder: '0', value: form.visa, onChange: function(ev){ setForm(Object.assign({}, form, { visa: ev.target.value })); } })
+        )
+      ),
+
+      e('div', { className: 'ayb-form-section-label' }, 'تطبيقات التوصيل'),
+      e('div', { className: 'ayb-form-grid' },
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'طلبات'),
+          e('input', { type: 'number', inputMode: 'decimal', placeholder: '0', value: form.talabat, onChange: function(ev){ setForm(Object.assign({}, form, { talabat: ev.target.value })); } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'كريم'),
+          e('input', { type: 'number', inputMode: 'decimal', placeholder: '0', value: form.kareem, onChange: function(ev){ setForm(Object.assign({}, form, { kareem: ev.target.value })); } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'اشيائي'),
+          e('input', { type: 'number', inputMode: 'decimal', placeholder: '0', value: form.myThings, onChange: function(ev){ setForm(Object.assign({}, form, { myThings: ev.target.value })); } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'عدد الطلبات'),
+          e('input', { type: 'number', inputMode: 'numeric', placeholder: '0', value: form.orderCount, onChange: function(ev){ setForm(Object.assign({}, form, { orderCount: ev.target.value })); } })
+        )
+      ),
+
       e('div', { className: 'ayb-form-footer' },
         e('span', { className: 'ayb-save-msg ' + (saveMsg ? 'show ' + saveMsg.type : '') }, saveMsg ? saveMsg.text : ''),
         e('button', { className: 'ayb-save-btn', onClick: handleSave, disabled: saving }, saving ? 'Saving...' : "Save today's numbers")
@@ -477,7 +521,9 @@ function App() {
         e('div', { className: 'ayb-empty' }, "No entries yet, log today's numbers above to get started") :
         e('table', { className: 'ayb-log' },
           e('thead', null, e('tr', null,
-            e('th', null, 'Date'), e('th', null, 'Sales (JOD)'), e('th', null, 'Tables'), e('th', null, 'AOV (JOD)'), e('th', null)
+            e('th', null, 'Date'), e('th', null, 'Sales (JOD)'), e('th', null, 'Tables'), e('th', null, 'AOV (JOD)'),
+            e('th', null, 'كاش'), e('th', null, 'فيزا'), e('th', null, 'طلبات'), e('th', null, 'كريم'), e('th', null, 'اشيائي'), e('th', null, '# طلبات'),
+            e('th', null)
           )),
           e('tbody', null, recentEntries.map(function(en) {
             return e('tr', { key: en.date },
@@ -485,6 +531,12 @@ function App() {
               e('td', { className: 'num' }, fmt(en.sales)),
               e('td', null, en.tables),
               e('td', { className: 'num' }, en.aov.toFixed(2)),
+              e('td', null, en.cash ? fmt(en.cash) : '—'),
+              e('td', null, en.visa ? fmt(en.visa) : '—'),
+              e('td', null, en.talabat ? fmt(en.talabat) : '—'),
+              e('td', null, en.kareem ? fmt(en.kareem) : '—'),
+              e('td', null, en.myThings ? fmt(en.myThings) : '—'),
+              e('td', null, en.orderCount || '—'),
               e('td', null, e('button', { className: 'ayb-del-btn', onClick: function(){ handleDelete(en.date); }, title: 'Delete entry' }, '×'))
             );
           }))
