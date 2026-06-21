@@ -140,6 +140,14 @@ const useRef = React.useRef;
 const TARGET_MONTHLY = 24143;
 const BASELINE_MONTHLY = 20119;
 
+const CATEGORIES = [
+  { key: 'cash', label: 'كاش', group: 'cashier' },
+  { key: 'visa', label: 'فيزا', group: 'cashier' },
+  { key: 'talabat', label: 'طلبات', group: 'delivery' },
+  { key: 'kareem', label: 'كريم', group: 'delivery' },
+  { key: 'myThings', label: 'اشيائي', group: 'delivery' },
+];
+
 function fmt(n, d) {
   d = d || 0;
   if (n === null || n === undefined || isNaN(n)) return '—';
@@ -157,6 +165,36 @@ function startOfWeek(dateStr) {
 }
 function monthKey(dateStr) { return dateStr.slice(0,7); }
 function dateKey(dateStr) { return dateStr.replace(/-/g, '_'); }
+
+function emptyForm() {
+  const f = { date: todayStr(), sales: '' };
+  CATEGORIES.forEach(function(c) {
+    f[c.key] = '';
+    f[c.key + 'Orders'] = '';
+  });
+  return f;
+}
+
+// Compute AOV figures for one entry: cashier AOV, delivery AOV (bonus), overall AOV
+function computeAovs(entry) {
+  let cashierSales = 0, cashierOrders = 0;
+  let deliverySales = 0, deliveryOrders = 0;
+  let totalSales = 0, totalOrders = 0;
+  CATEGORIES.forEach(function(c) {
+    const sales = entry[c.key] || 0;
+    const orders = entry[c.key + 'Orders'] || 0;
+    totalSales += sales;
+    totalOrders += orders;
+    if (c.group === 'cashier') { cashierSales += sales; cashierOrders += orders; }
+    if (c.group === 'delivery') { deliverySales += sales; deliveryOrders += orders; }
+  });
+  return {
+    cashierAov: cashierOrders > 0 ? cashierSales / cashierOrders : null,
+    deliveryAov: deliveryOrders > 0 ? deliverySales / deliveryOrders : null,
+    overallAov: totalOrders > 0 ? totalSales / totalOrders : null,
+    totalOrders: totalOrders
+  };
+}
 
 function LineChart(props) {
   const data = props.data, height = props.height || 200, color = props.color || '#6B1F2E', accent = props.accent || '#C9A227';
@@ -253,7 +291,7 @@ function App() {
   const [loaded, setLoaded] = useState(false);
   const [connStatus, setConnStatus] = useState('connecting');
   const [view, setView] = useState('week');
-  const [form, setForm] = useState({ date: todayStr(), sales: '', tables: '', cash: '', visa: '', talabat: '', kareem: '', myThings: '', orderCount: '' });
+  const [form, setForm] = useState(emptyForm());
   const [saveMsg, setSaveMsg] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -283,28 +321,22 @@ function App() {
 
   const handleSave = function() {
     const sales = parseFloat(form.sales);
-    const tables = parseInt(form.tables);
-    if (!form.date || isNaN(sales) || isNaN(tables) || tables <= 0) {
-      setSaveMsg({ type: 'err', text: 'Please fill in all fields correctly' });
+    if (!form.date || isNaN(sales)) {
+      setSaveMsg({ type: 'err', text: 'Please enter the date and total sales' });
       setTimeout(function(){ setSaveMsg(null); }, 2500);
       return;
     }
-    const aov = sales / tables;
-    const cash = parseFloat(form.cash) || 0;
-    const visa = parseFloat(form.visa) || 0;
-    const talabat = parseFloat(form.talabat) || 0;
-    const kareem = parseFloat(form.kareem) || 0;
-    const myThings = parseFloat(form.myThings) || 0;
-    const orderCount = parseInt(form.orderCount) || 0;
+    const record = { date: form.date, sales: sales };
+    CATEGORIES.forEach(function(c) {
+      record[c.key] = parseFloat(form[c.key]) || 0;
+      record[c.key + 'Orders'] = parseInt(form[c.key + 'Orders']) || 0;
+    });
     setSaving(true);
-    db.ref('ayoubi/entries/' + dateKey(form.date)).set({
-      date: form.date, sales: sales, tables: tables, aov: aov,
-      cash: cash, visa: visa, talabat: talabat, kareem: kareem, myThings: myThings, orderCount: orderCount
-    }).then(function() {
+    db.ref('ayoubi/entries/' + dateKey(form.date)).set(record).then(function() {
       setSaving(false);
       setSaveMsg({ type: 'ok', text: 'Saved to Firebase' });
       setTimeout(function(){ setSaveMsg(null); }, 2000);
-      setForm({ date: todayStr(), sales: '', tables: '', cash: '', visa: '', talabat: '', kareem: '', myThings: '', orderCount: '' });
+      setForm(emptyForm());
     }).catch(function(err) {
       setSaving(false);
       setSaveMsg({ type: 'err', text: 'Save failed: ' + err.message });
@@ -316,9 +348,13 @@ function App() {
     db.ref('ayoubi/entries/' + dateKey(date)).remove();
   };
 
-  const previewAov = useMemo(function() {
-    const s = parseFloat(form.sales), t = parseInt(form.tables);
-    return (!isNaN(s) && !isNaN(t) && t > 0) ? (s/t).toFixed(2) : null;
+  const previewAovs = useMemo(function() {
+    const tempEntry = {};
+    CATEGORIES.forEach(function(c) {
+      tempEntry[c.key] = parseFloat(form[c.key]) || 0;
+      tempEntry[c.key + 'Orders'] = parseInt(form[c.key + 'Orders']) || 0;
+    });
+    return computeAovs(tempEntry);
   }, [form]);
 
   const sorted = useMemo(function() {
@@ -328,13 +364,17 @@ function App() {
   const latest = sorted[sorted.length - 1];
   const prev = sorted[sorted.length - 2];
 
+  const latestAovs = latest ? computeAovs(latest) : null;
+  const prevAovs = prev ? computeAovs(prev) : null;
+
   function delta(curr, p, key) {
-    if (!curr || !p || p[key] === 0) return null;
-    return ((curr[key] - p[key]) / p[key]) * 100;
+    if (curr === null || curr === undefined || p === null || p === undefined || p === 0) return null;
+    return ((curr - p) / p) * 100;
   }
-  const salesDelta = delta(latest, prev, 'sales');
-  const tablesDelta = delta(latest, prev, 'tables');
-  const aovDelta = delta(latest, prev, 'aov');
+  const salesDelta = (latest && prev) ? delta(latest.sales, prev.sales) : null;
+  const cashierAovDelta = (latestAovs && prevAovs && latestAovs.cashierAov !== null && prevAovs.cashierAov !== null) ? delta(latestAovs.cashierAov, prevAovs.cashierAov) : null;
+  const overallAovDelta = (latestAovs && prevAovs && latestAovs.overallAov !== null && prevAovs.overallAov !== null) ? delta(latestAovs.overallAov, prevAovs.overallAov) : null;
+  const ordersDelta = (latestAovs && prevAovs) ? delta(latestAovs.totalOrders, prevAovs.totalOrders) : null;
 
   const thisMonth = todayStr().slice(0,7);
   const monthSales = sorted.filter(function(en){ return monthKey(en.date) === thisMonth; }).reduce(function(s,en){ return s + en.sales; }, 0);
@@ -351,12 +391,18 @@ function App() {
     });
   }, [sorted, view]);
 
-  const aovChartData = useMemo(function() {
-    return sorted.slice(-7).map(function(en) { return { label: dayLabel(en.date).split(',')[0], value: Math.round(en.aov) }; });
+  const overallAovChartData = useMemo(function() {
+    return sorted.slice(-7).map(function(en) {
+      const a = computeAovs(en);
+      return { label: dayLabel(en.date).split(',')[0], value: a.overallAov !== null ? Math.round(a.overallAov) : 0 };
+    });
   }, [sorted]);
 
-  const tablesChartData = useMemo(function() {
-    return sorted.slice(-7).map(function(en) { return { label: dayLabel(en.date).split(',')[0], value: en.tables }; });
+  const ordersChartData = useMemo(function() {
+    return sorted.slice(-7).map(function(en) {
+      const a = computeAovs(en);
+      return { label: dayLabel(en.date).split(',')[0], value: a.totalOrders };
+    });
   }, [sorted]);
 
   const recentEntries = useMemo(function() {
@@ -373,7 +419,7 @@ function App() {
         e('div', { className: 'ayb-mark ayb-display' }, 'ع'),
         e('div', { className: 'ayb-brand-text' },
           e('h1', { className: 'ayb-display' }, 'Ayoubi Restaurant'),
-          e('p', null, 'Daily Sales & Table Performance')
+          e('p', null, 'Daily Sales & Order Performance')
         )
       ),
       e('div', { className: 'ayb-date-pill' },
@@ -388,7 +434,7 @@ function App() {
 
     e('div', { className: 'ayb-ledger' },
       e('div', { className: 'ayb-ledger-title' }, "Today's entry"),
-      e('div', { className: 'ayb-ledger-sub' }, "Log the day's numbers once service ends, AOV calculates automatically and syncs to everyone"),
+      e('div', { className: 'ayb-ledger-sub' }, "Log sales and order count per category, AOV calculates per group automatically"),
 
       e('div', { className: 'ayb-form-section-label first' }, 'الأساسيات'),
       e('div', { className: 'ayb-form-grid' },
@@ -399,46 +445,66 @@ function App() {
         e('div', { className: 'ayb-field' },
           e('label', null, 'مبيعات (Total sales JOD)'),
           e('input', { type: 'number', inputMode: 'decimal', placeholder: 'e.g. 720', value: form.sales, onChange: function(ev){ setForm(Object.assign({}, form, { sales: ev.target.value })); } })
-        ),
-        e('div', { className: 'ayb-field' },
-          e('label', null, 'عدد الطاولات'),
-          e('input', { type: 'number', inputMode: 'numeric', placeholder: 'e.g. 62', value: form.tables, onChange: function(ev){ setForm(Object.assign({}, form, { tables: ev.target.value })); } })
-        ),
-        e('div', { className: 'ayb-field' },
-          e('label', null, 'Average ticket'),
-          e('input', { type: 'text', disabled: true, value: previewAov ? previewAov + ' JOD' : '—', style: { background:'#F7F1E6', color:'#6B1F2E', fontWeight:700 } })
         )
       ),
 
-      e('div', { className: 'ayb-form-section-label' }, 'طرق الدفع'),
+      e('div', { className: 'ayb-form-section-label' }, 'طرق الدفع (كاشير المطعم)'),
       e('div', { className: 'ayb-form-grid' },
         e('div', { className: 'ayb-field' },
-          e('label', null, 'كاش'),
+          e('label', null, 'كاش (مبيعات)'),
           e('input', { type: 'number', inputMode: 'decimal', placeholder: '0', value: form.cash, onChange: function(ev){ setForm(Object.assign({}, form, { cash: ev.target.value })); } })
         ),
         e('div', { className: 'ayb-field' },
-          e('label', null, 'فيزا'),
+          e('label', null, 'عدد أوردرات كاش'),
+          e('input', { type: 'number', inputMode: 'numeric', placeholder: '0', value: form.cashOrders, onChange: function(ev){ setForm(Object.assign({}, form, { cashOrders: ev.target.value })); } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'فيزا (مبيعات)'),
           e('input', { type: 'number', inputMode: 'decimal', placeholder: '0', value: form.visa, onChange: function(ev){ setForm(Object.assign({}, form, { visa: ev.target.value })); } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'عدد أوردرات فيزا'),
+          e('input', { type: 'number', inputMode: 'numeric', placeholder: '0', value: form.visaOrders, onChange: function(ev){ setForm(Object.assign({}, form, { visaOrders: ev.target.value })); } })
         )
       ),
 
       e('div', { className: 'ayb-form-section-label' }, 'تطبيقات التوصيل'),
       e('div', { className: 'ayb-form-grid' },
         e('div', { className: 'ayb-field' },
-          e('label', null, 'طلبات'),
+          e('label', null, 'طلبات (مبيعات)'),
           e('input', { type: 'number', inputMode: 'decimal', placeholder: '0', value: form.talabat, onChange: function(ev){ setForm(Object.assign({}, form, { talabat: ev.target.value })); } })
         ),
         e('div', { className: 'ayb-field' },
-          e('label', null, 'كريم'),
+          e('label', null, 'عدد أوردرات طلبات'),
+          e('input', { type: 'number', inputMode: 'numeric', placeholder: '0', value: form.talabatOrders, onChange: function(ev){ setForm(Object.assign({}, form, { talabatOrders: ev.target.value })); } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'كريم (مبيعات)'),
           e('input', { type: 'number', inputMode: 'decimal', placeholder: '0', value: form.kareem, onChange: function(ev){ setForm(Object.assign({}, form, { kareem: ev.target.value })); } })
         ),
         e('div', { className: 'ayb-field' },
-          e('label', null, 'اشيائي'),
+          e('label', null, 'عدد أوردرات كريم'),
+          e('input', { type: 'number', inputMode: 'numeric', placeholder: '0', value: form.kareemOrders, onChange: function(ev){ setForm(Object.assign({}, form, { kareemOrders: ev.target.value })); } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'اشيائي (مبيعات)'),
           e('input', { type: 'number', inputMode: 'decimal', placeholder: '0', value: form.myThings, onChange: function(ev){ setForm(Object.assign({}, form, { myThings: ev.target.value })); } })
         ),
         e('div', { className: 'ayb-field' },
-          e('label', null, 'عدد الطلبات'),
-          e('input', { type: 'number', inputMode: 'numeric', placeholder: '0', value: form.orderCount, onChange: function(ev){ setForm(Object.assign({}, form, { orderCount: ev.target.value })); } })
+          e('label', null, 'عدد أوردرات اشيائي'),
+          e('input', { type: 'number', inputMode: 'numeric', placeholder: '0', value: form.myThingsOrders, onChange: function(ev){ setForm(Object.assign({}, form, { myThingsOrders: ev.target.value })); } })
+        )
+      ),
+
+      e('div', { className: 'ayb-form-section-label' }, 'معاينة AOV'),
+      e('div', { className: 'ayb-form-grid' },
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'AOV الكاشير (كاش+فيزا)'),
+          e('input', { type: 'text', disabled: true, value: previewAovs.cashierAov !== null ? previewAovs.cashierAov.toFixed(2) + ' JOD' : '—', style: { background:'#F7F1E6', color:'#6B1F2E', fontWeight:700 } })
+        ),
+        e('div', { className: 'ayb-field' },
+          e('label', null, 'AOV الكلي'),
+          e('input', { type: 'text', disabled: true, value: previewAovs.overallAov !== null ? previewAovs.overallAov.toFixed(2) + ' JOD' : '—', style: { background:'#F7F1E6', color:'#6B1F2E', fontWeight:700 } })
         )
       ),
 
@@ -455,19 +521,19 @@ function App() {
         salesDelta !== null ? e('span', { className: 'ayb-kpi-delta ' + (salesDelta > 0 ? 'up' : salesDelta < 0 ? 'down' : 'flat') }, (salesDelta > 0 ? '▲' : salesDelta < 0 ? '▼' : '—') + ' ' + Math.abs(salesDelta).toFixed(1) + '% vs prior day') : null
       ),
       e('div', { className: 'ayb-kpi' },
-        e('div', { className: 'ayb-kpi-label' }, 'Tables served'),
-        e('div', { className: 'ayb-kpi-value' }, latest ? latest.tables : '—'),
-        tablesDelta !== null ? e('span', { className: 'ayb-kpi-delta ' + (tablesDelta > 0 ? 'up' : tablesDelta < 0 ? 'down' : 'flat') }, (tablesDelta > 0 ? '▲' : tablesDelta < 0 ? '▼' : '—') + ' ' + Math.abs(tablesDelta).toFixed(1) + '% vs prior day') : null
+        e('div', { className: 'ayb-kpi-label' }, 'Total orders'),
+        e('div', { className: 'ayb-kpi-value' }, latestAovs ? latestAovs.totalOrders : '—'),
+        ordersDelta !== null ? e('span', { className: 'ayb-kpi-delta ' + (ordersDelta > 0 ? 'up' : ordersDelta < 0 ? 'down' : 'flat') }, (ordersDelta > 0 ? '▲' : ordersDelta < 0 ? '▼' : '—') + ' ' + Math.abs(ordersDelta).toFixed(1) + '% vs prior day') : null
       ),
       e('div', { className: 'ayb-kpi' },
-        e('div', { className: 'ayb-kpi-label' }, 'Average order value'),
-        e('div', { className: 'ayb-kpi-value gold ayb-display' }, latest ? latest.aov.toFixed(2) : '—'),
-        aovDelta !== null ? e('span', { className: 'ayb-kpi-delta ' + (aovDelta > 0 ? 'up' : aovDelta < 0 ? 'down' : 'flat') }, (aovDelta > 0 ? '▲' : aovDelta < 0 ? '▼' : '—') + ' ' + Math.abs(aovDelta).toFixed(1) + '% vs prior day') : null
+        e('div', { className: 'ayb-kpi-label' }, 'AOV الكاشير'),
+        e('div', { className: 'ayb-kpi-value gold ayb-display' }, latestAovs && latestAovs.cashierAov !== null ? latestAovs.cashierAov.toFixed(2) : '—'),
+        cashierAovDelta !== null ? e('span', { className: 'ayb-kpi-delta ' + (cashierAovDelta > 0 ? 'up' : cashierAovDelta < 0 ? 'down' : 'flat') }, (cashierAovDelta > 0 ? '▲' : cashierAovDelta < 0 ? '▼' : '—') + ' ' + Math.abs(cashierAovDelta).toFixed(1) + '% vs prior day') : null
       ),
       e('div', { className: 'ayb-kpi' },
-        e('div', { className: 'ayb-kpi-label' }, 'Days logged'),
-        e('div', { className: 'ayb-kpi-value' }, entries.length),
-        e('span', { className: 'ayb-kpi-delta flat' }, 'bundle range 13.25–22.50')
+        e('div', { className: 'ayb-kpi-label' }, 'AOV الكلي'),
+        e('div', { className: 'ayb-kpi-value gold ayb-display' }, latestAovs && latestAovs.overallAov !== null ? latestAovs.overallAov.toFixed(2) : '—'),
+        overallAovDelta !== null ? e('span', { className: 'ayb-kpi-delta ' + (overallAovDelta > 0 ? 'up' : overallAovDelta < 0 ? 'down' : 'flat') }, (overallAovDelta > 0 ? '▲' : overallAovDelta < 0 ? '▼' : '—') + ' ' + Math.abs(overallAovDelta).toFixed(1) + '% vs prior day') : null
       )
     ),
 
@@ -495,22 +561,22 @@ function App() {
         e(LineChart, { data: chartData })
       ),
       e('div', { className: 'ayb-chart-card' },
-        e('div', { className: 'ayb-chart-head' }, e('h3', null, 'Average order value')),
-        e(LineChart, { data: aovChartData, color: '#C9A227', accent: '#6B1F2E' })
+        e('div', { className: 'ayb-chart-head' }, e('h3', null, 'Overall AOV trend')),
+        e(LineChart, { data: overallAovChartData, color: '#C9A227', accent: '#6B1F2E' })
       )
     ),
 
     e('div', { className: 'ayb-charts' },
       e('div', { className: 'ayb-chart-card' },
-        e('div', { className: 'ayb-chart-head' }, e('h3', null, 'Tables served (last 7 logged days)')),
-        e(BarChart, { data: tablesChartData })
+        e('div', { className: 'ayb-chart-head' }, e('h3', null, 'Total orders (last 7 logged days)')),
+        e(BarChart, { data: ordersChartData })
       ),
       e('div', { className: 'ayb-chart-card', style: { display:'flex', flexDirection:'column', justifyContent:'center' } },
         e('div', { className: 'ayb-chart-head', style: { marginBottom:6 } }, e('h3', null, 'Target reference')),
         e('div', { style: { fontSize:13, color:'#6B5A5E', lineHeight:1.6 } },
           e('p', { style: { margin:'0 0 10px' } }, 'Baseline monthly average (Jan–May): ', e('b', { style: { color:'#6B1F2E' } }, fmt(BASELINE_MONTHLY) + ' JOD')),
           e('p', { style: { margin:'0 0 10px' } }, '45-day growth target (+20%): ', e('b', { style: { color:'#6B1F2E' } }, fmt(TARGET_MONTHLY) + ' JOD')),
-          e('p', { style: { margin:0 } }, 'Bundle AOV anchors: ', e('b', { style: { color:'#6B1F2E' } }, '13.25 – 22.50 JOD'))
+          e('p', { style: { margin:0 } }, 'AOV الكاشير = (كاش+فيزا) ÷ (أوردرات كاش+فيزا)')
         )
       )
     ),
@@ -521,22 +587,24 @@ function App() {
         e('div', { className: 'ayb-empty' }, "No entries yet, log today's numbers above to get started") :
         e('table', { className: 'ayb-log' },
           e('thead', null, e('tr', null,
-            e('th', null, 'Date'), e('th', null, 'Sales (JOD)'), e('th', null, 'Tables'), e('th', null, 'AOV (JOD)'),
-            e('th', null, 'كاش'), e('th', null, 'فيزا'), e('th', null, 'طلبات'), e('th', null, 'كريم'), e('th', null, 'اشيائي'), e('th', null, '# طلبات'),
+            e('th', null, 'Date'), e('th', null, 'Sales (JOD)'),
+            e('th', null, 'كاش'), e('th', null, 'فيزا'), e('th', null, 'طلبات'), e('th', null, 'كريم'), e('th', null, 'اشيائي'),
+            e('th', null, 'Orders'), e('th', null, 'AOV كاشير'), e('th', null, 'AOV كلي'),
             e('th', null)
           )),
           e('tbody', null, recentEntries.map(function(en) {
+            const a = computeAovs(en);
             return e('tr', { key: en.date },
               e('td', null, dayLabel(en.date)),
               e('td', { className: 'num' }, fmt(en.sales)),
-              e('td', null, en.tables),
-              e('td', { className: 'num' }, en.aov.toFixed(2)),
               e('td', null, en.cash ? fmt(en.cash) : '—'),
               e('td', null, en.visa ? fmt(en.visa) : '—'),
               e('td', null, en.talabat ? fmt(en.talabat) : '—'),
               e('td', null, en.kareem ? fmt(en.kareem) : '—'),
               e('td', null, en.myThings ? fmt(en.myThings) : '—'),
-              e('td', null, en.orderCount || '—'),
+              e('td', null, a.totalOrders || '—'),
+              e('td', { className: 'num' }, a.cashierAov !== null ? a.cashierAov.toFixed(2) : '—'),
+              e('td', { className: 'num' }, a.overallAov !== null ? a.overallAov.toFixed(2) : '—'),
               e('td', null, e('button', { className: 'ayb-del-btn', onClick: function(){ handleDelete(en.date); }, title: 'Delete entry' }, '×'))
             );
           }))
@@ -546,6 +614,7 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+
 </script>
 </body>
 </html>
